@@ -1,0 +1,10 @@
+db.sqlite3
+settings.py
+node_modules/
+client/src/node_modules/
+client/node_modules/
+dist/
+client/dist/
+venv/
+__pycache__
+*.pyc
