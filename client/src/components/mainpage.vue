@@ -1,9 +1,9 @@
 <template>
 
 	<div class="mainpage" >
-
+		<span :key="key"></span>  <!-- for update page purpose -->
 		<el-container style="height: 100%; width: 100%; position: absolute;" direction="vertical" id = "rootForm">
-			<el-header class="shadow background" style="height: 55px; opacity: 0.6;">
+			<el-header class="shadow" style="height: 55px; opacity: 0.6;">
 				<div>
 					<el-button class="font-Logo" type="text" style="float:left; font-weight:bold; font-size:20px;">
 						AIStocks
@@ -33,37 +33,59 @@
 							</el-button-group>
 						</el-row>
 						<el-row>
-						    <el-table :data="tabledata" style="width: 100%; font-size:12px;" :show-header=false 
-								:row-style="rowstyle" :cell-style="{padding:'0px'}">
-						      <el-table-column prop="id" label="id" width="50">
+						    <el-table :data="tabledata" style="width: 100%; font-size:14px;" :show-header=false 
+								:row-style="rowstyle" :cell-style="{padding:'0px'}" @row-click="stockRowClick">
+						      <el-table-column prop="id" label="id" width="55">
 								 	<template v-slot="scope">
             							<span>{{scope.$index+1}}</span>
         							</template>
 						      </el-table-column>
-						      <el-table-column prop="code" label="code" width="65">
+						      <el-table-column prop="code" label="code" width="70">
 									<template v-slot:default="scope">
             							<span>{{scope.row.symbol}}</span>
         							</template>
 						      </el-table-column>
-						      <el-table-column prop="name" label="name" width="70">
+						      <el-table-column prop="name" label="name" width="80">
 								  	<template v-slot:default="scope">
             							<span>{{scope.row.name}}</span>
         							</template>
 						      </el-table-column>
-							  <el-table-column prop="select" label="select" width="53">
+							  <el-table-column prop="select" label="select" width="45">
       								<template v-slot:default="scope">
-        								<el-button
-          									size="mini" style="padding: 3px"
-          									@click="handleBtn(scope.$index, scope.row.symbol, $event)">
-											  {{getbtnname(scope.row.selected)}}
-										</el-button>
+										<el-tooltip class="item" effect="light" :content="getbtntip(scope.row.selected)" 
+											placement="right-start">
+        									<el-button
+          										size="mini" style="padding:3px; width:20px;font-size:14px;"
+          										@click="handleBtn(scope.$index, scope.row.symbol, $event)">
+											  	{{getbtnname(scope.row.selected)}}
+											</el-button>
+										</el-tooltip>
       								</template>
     						  </el-table-column>		
 						    </el-table>
 						</el-row>
 					</el-aside>
-					<el-main>Main
-					
+					<el-main>
+						<template>
+  							<el-tabs v-model="activeCard" type="card" @tab-click="cardClick" id="thetabs">
+    							<el-tab-pane label="K线图" name="kline">
+									<div>
+										<!-- :klineParams="klineParams" :klineData="klineData" 绑定下面data数据 用于自定制数据传输到vue-kline, ref="callMethods"绑定一个DOM事件 用于调用接口  --->
+    									<Vue-kline :klineParams="klineParams" :klineData="klineData" ref="callMethods" 
+											@refreshKlineData="refreshKlineData" 
+											style="margin: auto">
+										</Vue-kline>
+									
+									</div>
+								</el-tab-pane>
+    							<el-tab-pane label="配置管理" name="second" class="klinePane">配置管理
+
+								</el-tab-pane>
+    							<el-tab-pane label="角色管理" name="third">角色管理
+
+								</el-tab-pane>
+  							</el-tabs>
+						</template>
 					</el-main>
 				</el-container>
 
@@ -77,6 +99,8 @@
 	import Vue from 'vue'
 	import axios from 'axios'
 	import VueAxios from 'vue-axios'
+	import VueKline from "../kline/kline";
+	import data from "@/assets/data";
 	   
 	export default {
 		name: "mainpage",
@@ -84,35 +108,159 @@
 		data() {
 			 
 			return {
+				key: 0, //for update page purpose
 				tabPosition: 'left',
 				identifyCode: '1234',
 				contentWidth: 110,
 				slDialogTitle: 'Sign Up',
 				dialogType: 'signup',
-				//stocktype: "沪A",
-				tabledata:[],
-				stocklist: [],
+				tabledata:[],  //当前显示的股票列表
+				stocklist: [], //所有股票列表
 				btntype_sha: "",
 				btntype_sza: "",
 				btntype_zxb: "",
 				btntype_kcb: "",
 				btntype_cyb: "",
 				btntype_zxg: "",
+				activeCard: "kline",
+				stockCode: "sh.600000", //当前选择的股票代码
+				klineOption: 86400000, //当前k线类型，900000-15m, 86400000-1d
+
+				klineParams: {
+        			width: 800,
+        			height: 500,
+        			theme: "dark",
+        			language: "zh-cn",
+        			ranges: ["1w", "1d", "1h", "30m", "15m", "5m", "line"],
+        			symbol: "BTC",
+        			symbolName: "浦发银行",
+        			intervalTime: 5000,
+        			depthWidth: 50,
+        			count: 1,
+     			},
+      			klineData: {}
 			}
 		},
 		
 		components: {
-			
+			VueKline
 		},
 				
 		props: [], 
 		
 		mounted() {
+			this.$nextTick(()=>{ // 页面渲染完成后的回调
+				//以下操作是为了应用窗口变化时K线图能够自适应
+				var width1 = document.getElementById("thetabs").offsetWidth - 10;
+				var height1= document.getElementById("thetabs").offsetHeight - 70;
+
+				//console.log("W:" + width1 + "H:" + height1);
+				
+				this.klineParams.width =width1;
+				this.klineParams.height= height1;
+
+				this.$refs.callMethods.resize(width1, height1); 
+				//console.log("W:" + this.klineParams.width + "H:" + this.klineParams.height);
+			})
+	
 			this.getstocklist()
+			//this.handleUpdate()
 		},
 		
 		
 		methods: {
+			//希望用于页面刷新，但好像没用
+			handleUpdate() {
+        		this.key += 1 
+			},
+
+			//获取KLine数据
+			getKLineData(sCode, sFreq) {    
+				//this.klineData = data;
+	  			//this.$refs.callMethods.kline.chartMgr.getChart().updateDataAndDisplay(data.data.lines);
+	  
+				this.axios.get('/api/get_kline',
+								{params: {"sCode": sCode, "sFreq": sFreq}}
+				)
+			    	.then((response) => {
+			        	var res = response.data;
+					
+			        	if (res.error_num === 0) {
+							this.klineData.data = response.data;
+							
+							this.$refs.callMethods.kline.chartMgr.getChart().updateDataAndDisplay(res.data.lines); //强制更改缓存中的lines值,防止显示不同步
+							//console.log("line number:" + res.lines.length)
+							
+							
+			        	}else if (res.error_num === 1001) {
+							this.$message.error(res['msg'])
+							this.$router.push({path:'/'})			
+						}else {
+			            	this.$message.error(res['msg'])
+							console.log(res['msg'])
+							this.$router.push({path:'/'})
+			    		}
+					})
+
+   			},
+
+			refreshKlineData(option) {
+				var klType = this.getKLineType(option);
+
+				this.klineOption = option;
+
+				console.log("KlineType: " + klType); //其他时间
+				
+				this.getKLineData(this.stockCode, klType);
+			},
+
+			getKLineType(msTime) {
+				var klType = "15"
+
+				if (msTime > 604800000) {
+					klType = "m"
+				} else if (msTime === 604800000){
+					klType = "w"
+				} else if (msTime === 86400000){
+					klType = "d"
+				} else if (msTime === 3600000){
+					klType = "60"
+				} else if (msTime === 1800000) {
+					klType = "30"
+				} else if (msTime === 900000) {
+					klType = "15"
+				} else if (msTime === 300000) {
+					klType = "5"
+				} else if (msTime === 60000) {
+					klType = "1"
+				}
+
+				return klType
+			},
+
+			stockRowClick(row, column, event) {
+				//var index = row.id - 1;
+				var code = row.symbol;
+				var ex = row.exchange;
+
+				if (ex === "SSE") {
+					this.stockCode = "sh." + code
+				}
+				else{
+					this.stockCode = "sz." + code
+				}
+
+				this.$refs.callMethods.setSymbol(row.symbol, row.name);
+				
+				this.refreshKlineData(this.klineOption);// 进入页面时执行,默认聚合时间900000毫秒(15分钟)
+			},
+
+			//页面切换处理
+			cardClick() {
+        		this.handleUpdate() 
+			},
+			  
+			//自选按钮处理
 			handleBtn(index, symbol, event){
 				var select = this.tabledata[index].selected
 				var myindex=-1
@@ -130,12 +278,12 @@
 					this.save_selected(symbol, "false")
 					
 					this.tabledata[index].selected = "false"
-					event.srcElement.innerHTML = "加自选"
+					//event.srcElement.innerHTML = "+"
 
 					this.stocklist[myindex].selected = "false"
 					if (this.btntype_zxg === "primary") {
 						this.tabledata = this.stocklist.filter(item=>{return ((item.selected === "true"))})
-						event.srcElement.innerHTML = "去自选"  //因为前面手动改为"加自选"就不能自动更新了
+						//event.srcElement.innerHTML = "-"  //因为前面手动改为"加自选"就不能自动更新了
 					}
 				}
 				else{
@@ -150,18 +298,16 @@
 						this.save_selected(symbol, "true")
 
 						this.tabledata[index].selected = "true"
-						event.srcElement.innerHTML = "去自选"
+						//event.srcElement.innerHTML = "-"
 
 						this.stocklist[myindex].selected = "true"
 						
 					}
 				}
 				
-				//console.log("type:" + typeof(select))
-				//console.log("selected:" + this.tabledata[index].selected)
-				//console.log("row2:" + this.stocklist[myindex].symbol + this.stocklist[myindex].selected)
 			},
 
+			//保存自选
 			save_selected: function(symbol, selected){
 
 				this.axios.post("/api/save_selected/", 
@@ -196,12 +342,22 @@
 
 			},
 
-			getbtnname(selected){
+			getbtntip(selected){
 				if (selected === "true"){
 					return "去自选"
 				}
 				else{
 					return "加自选"
+				}
+			},
+
+			//自选按钮切换
+			getbtnname(selected){
+				if (selected === "true"){
+					return "-"
+				}
+				else{
+					return "+"
 				}
 			},
 
@@ -348,6 +504,8 @@
 	.el-main {
 		padding: 0px;
 		margin: 0px;
+		height: 100%;
+		
 	}
 	
 	.el-link {
@@ -416,4 +574,46 @@
   		border-width:2px;
 		border-color: rgba(169, 169, 169, 0.89);
   	}
+
+	.klinediv	{
+  		border-style:solid;
+  		border-width:2px;
+		border-color: rgba(238, 12, 12, 0.89);
+		height: 100%;
+		margin: 0px;
+		padding: 0px;
+  	}
+
+	.klinePane	{
+  		border-style:solid;
+  		border-width:3px;
+		border-color: rgba(2, 138, 148, 0.89);
+		height: 100%;
+		margin: 0px;
+		padding: 0px;
+  	}
+
+	.el-tabs{
+		background-color: #fcfcf7;
+		height: 100%;
+	}
+
+	.el-tab-pane{
+		background-color: #fcfcf7;
+		height: 100%;
+	}
+
+	.el-tab-pane__content{
+		background-color: #fcfcf7;
+		height: 100%;
+	}
+
+	.Absolute-Center {
+  		width: 90%;
+  		height: 90%;
+  		overflow: auto;
+  		margin: 1px;
+  		/*position: absolute;*/
+  		top: 0; left: 0; bottom: 0; right: 0;
+	}
 </style>
