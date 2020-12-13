@@ -33,7 +33,12 @@
 							</el-button-group>
 						</el-row>
 						<el-row>
-						    <el-table :data="tabledata" style="width: 100%; font-size:14px;" :show-header=false 
+						    <el-table 
+								v-loading="stockListLoading"
+    							element-loading-text="正在获取股票列表..."
+    							element-loading-spinner="el-icon-loading"
+    							element-loading-background="rgba(0, 0, 0, 0.8)"
+								:data="tabledata" style="width: 100%; font-size:14px;" :show-header=false 
 								:row-style="rowstyle" :cell-style="{padding:'0px'}" @row-click="stockRowClick">
 						      <el-table-column prop="id" label="id" width="55">
 								 	<template v-slot="scope">
@@ -52,12 +57,12 @@
 						      </el-table-column>
 							  <el-table-column prop="select" label="select" width="45">
       								<template v-slot:default="scope">
-										<el-tooltip class="item" effect="light" :content="getbtntip(scope.row.selected)" 
+										<el-tooltip class="item" effect="light" :content=scope.row.hint 
 											placement="right-start">
         									<el-button
           										size="mini" style="padding:3px; width:20px;font-size:14px;"
           										@click="handleBtn(scope.$index, scope.row.symbol, $event)">
-											  	{{getbtnname(scope.row.selected)}}
+											  	{{scope.row.btnname}}
 											</el-button>
 										</el-tooltip>
       								</template>
@@ -69,9 +74,14 @@
 						<template>
   							<el-tabs v-model="activeCard" type="card" @tab-click="cardClick" id="thetabs">
     							<el-tab-pane label="K线图" name="kline">
-									<div>
+									<div
+										v-loading="klineLoading"
+    									element-loading-text="正在从服务器获取K线数据..."
+    									element-loading-background="rgba(0, 0, 0, 0.8)"
+									>
 										<!-- :klineParams="klineParams" :klineData="klineData" 绑定下面data数据 用于自定制数据传输到vue-kline, ref="callMethods"绑定一个DOM事件 用于调用接口  --->
-    									<Vue-kline :klineParams="klineParams" :klineData="klineData" ref="callMethods" 
+    									<Vue-kline 
+											:klineParams="klineParams" :klineData="klineData" ref="callMethods" 
 											@refreshKlineData="refreshKlineData" 
 											style="margin: auto">
 										</Vue-kline>
@@ -125,6 +135,8 @@
 				activeCard: "kline",
 				stockCode: "sh.600000", //当前选择的股票代码
 				klineOption: 86400000, //当前k线类型，900000-15m, 86400000-1d
+				stockListLoading: false,
+				klineLoading: false,
 
 				klineParams: {
         			width: 800,
@@ -132,7 +144,7 @@
         			theme: "dark",
         			language: "zh-cn",
         			ranges: ["1w", "1d", "1h", "30m", "15m", "5m", "line"],
-        			symbol: "BTC",
+        			symbol: "600000",
         			symbolName: "浦发银行",
         			intervalTime: 5000,
         			depthWidth: 50,
@@ -165,6 +177,8 @@
 	
 			this.getstocklist()
 			//this.handleUpdate()
+
+			
 		},
 		
 		
@@ -178,28 +192,34 @@
 			getKLineData(sCode, sFreq) {    
 				//this.klineData = data;
 	  			//this.$refs.callMethods.kline.chartMgr.getChart().updateDataAndDisplay(data.data.lines);
-	  
+				this.klineLoading = true;
+				  
 				this.axios.get('/api/get_kline',
 								{params: {"sCode": sCode, "sFreq": sFreq}}
 				)
 			    	.then((response) => {
 			        	var res = response.data;
-					
+
+						this.klineLoading = false;
+
 			        	if (res.error_num === 0) {
-							this.klineData.data = response.data;
+							this.klineData = response.data
+							//this.klineData.data = response.data;
 							
 							this.$refs.callMethods.kline.chartMgr.getChart().updateDataAndDisplay(res.data.lines); //强制更改缓存中的lines值,防止显示不同步
 							//console.log("line number:" + res.lines.length)
 							
-							
-			        	}else if (res.error_num === 1001) {
-							this.$message.error(res['msg'])
-							this.$router.push({path:'/'})			
 						}else {
 			            	this.$message.error(res['msg'])
 							console.log(res['msg'])
-							this.$router.push({path:'/'})
+							//this.$router.push({path:'/'})
 			    		}
+					},
+					(error)=>{
+						this.klineLoading = false;
+
+						this.$message.error(error.message)
+						console.log(error.message)
 					})
 
    			},
@@ -244,15 +264,20 @@
 				var ex = row.exchange;
 
 				if (ex === "SSE") {
-					this.stockCode = "sh." + code
+					code = "sh." + code
 				}
 				else{
-					this.stockCode = "sz." + code
+					code = "sz." + code
 				}
 
-				this.$refs.callMethods.setSymbol(row.symbol, row.name);
+				//console.log("column: " + column.label)
+				if ((this.stockCode != code) && (column.label != "select")) {
+					this.$refs.callMethods.setSymbol(row.symbol, row.name);
+					this.stockCode = code;
+					//this.klineOption = 86400000; //当前k线类型，900000-15m, 86400000-1d
+					this.refreshKlineData(this.klineOption);// 进入页面时执行,默认聚合时间900000毫秒(15分钟)
+				}
 				
-				this.refreshKlineData(this.klineOption);// 进入页面时执行,默认聚合时间900000毫秒(15分钟)
 			},
 
 			//页面切换处理
@@ -278,9 +303,13 @@
 					this.save_selected(symbol, "false")
 					
 					this.tabledata[index].selected = "false"
+					this.tabledata[index].btnname = "+"
+					this.tabledata[index].hint = "加自选"
 					//event.srcElement.innerHTML = "+"
 
 					this.stocklist[myindex].selected = "false"
+					this.stocklist[myindex].btnname = "+"
+					this.stocklist[myindex].hint = "加自选"
 					if (this.btntype_zxg === "primary") {
 						this.tabledata = this.stocklist.filter(item=>{return ((item.selected === "true"))})
 						//event.srcElement.innerHTML = "-"  //因为前面手动改为"加自选"就不能自动更新了
@@ -298,10 +327,13 @@
 						this.save_selected(symbol, "true")
 
 						this.tabledata[index].selected = "true"
+						this.tabledata[index].btnname = "-"
+						this.tabledata[index].hint = "去自选"
 						//event.srcElement.innerHTML = "-"
 
 						this.stocklist[myindex].selected = "true"
-						
+						this.stocklist[myindex].btnname = "-"
+						this.stocklist[myindex].hint = "去自选"
 					}
 				}
 				
@@ -407,8 +439,12 @@
             },
 
 			getstocklist: function(){
+				//
+				this.stockListLoading = true
+
 				this.axios.get('/api/get_stocklist')
 			    	.then((response) => {
+
 			        	var res = response.data
 					
 			        	if (res.error_num === 0) {
@@ -419,15 +455,25 @@
 
 							//this.gettabledata()
 							this.changestocktype("沪A")
-							
-			        	}else if (res.error_num === 1001) {
-							this.$message.error(res['msg'])
-							this.$router.push({path:'/'})			
+
+							this.stockListLoading = false
+
+							this.klineParams.symbol = "600000"
+							this.klineParams.symbolName = "浦发银行"
+							this.$refs.callMethods.setSymbol(this.klineParams.symbol, this.klineParams.symbolName)
+							this.refreshKlineData(this.klineOption)
 						}else {
+							this.stockListLoading = false
 			            	this.$message.error(res['msg'])
 							console.log(res['msg'])
 							this.$router.push({path:'/'})
 			    		}
+					},
+					(error)=>{
+						this.stockListLoading = false
+						this.$message.error(error.message)
+						console.log(error.message)
+
 					})
 			},
 

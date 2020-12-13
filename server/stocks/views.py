@@ -102,8 +102,13 @@ def get_kline(request):
     #### 登陆BaoStock系统 ####
     lg = bs.login()
     # 显示登陆返回信息
-    print('login respond error_code:'+lg.error_code)
-    print('login respond  error_msg:'+lg.error_msg)
+    if (lg.error_code != '0'):
+        #print(type(lg.error_code))
+        print('login respond error_code:'+lg.error_code)
+        print('login respond  error_msg:'+lg.error_msg)
+        response['msg'] = lg.error_msg
+        response['error_num'] = int(lg.error_code)
+        return JsonResponse(response)
 
     #get one year datalist
     one_yrs_ago = datetime.datetime.now() - relativedelta(years=1)
@@ -121,8 +126,13 @@ def get_kline(request):
         rs = bs.query_history_k_data_plus(sCode, "time, open,high,low,close,volume",
             start_date= sStart, frequency= sFreq, adjustflag="3")
 
-    print('query_history_k_data_plus respond error_code:'+rs.error_code)
-    print('query_history_k_data_plus respond  error_msg:'+rs.error_msg)
+    if (rs.error_code != '0'):
+        print('query_history_k_data_plus respond error_code:'+rs.error_code)
+        print('query_history_k_data_plus respond  error_msg:'+rs.error_msg)
+        response['msg'] = rs.error_msg
+        response['error_num'] = int(rs.error_code)
+        return JsonResponse(response)
+
 
     #### 打印结果集 ####
     data_list = []
@@ -149,7 +159,7 @@ def get_kline(request):
 
     response['msg'] = 'success'
     response['error_num'] = 0
-    response['success'] = 'true'
+    response['success'] = True
 
     data['depths'] = depths
     data['lines'] = data_list
@@ -232,9 +242,9 @@ def get_stocklist(request):
             #print(rows[0], rows[1])
             for row in rows:
                 if (row['symbol'] in selectedStocks):
-                    row.update({'selected': 'true'})
+                    row.update({'selected': 'true', 'btnname':'-', 'hint':'去自选'})
                 else:
-                    row.update({'selected': 'false'})
+                    row.update({'selected': 'false', 'btnname':'+', 'hint':'加自选'})
 
                 #print(row)
     finally:
